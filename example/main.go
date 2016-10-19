@@ -1,53 +1,46 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 
 	"github.com/jimmyjames85/eflag"
-	"fmt"
 )
 
 func main() {
 
-	ss := simpleSettings{
-		OneFish: "This is a default",
+	//mike := "Mike 'The Default' Pike"
+
+	ss := &simpleSettings{
+		OneFishName: "Wally 'The Default' Walleye",
+		TwoFishName: "Tod 'The Default' Cod",
+		//ThreeFishName: &mike,  //This is do able, Right now I don't see the need for it though
 	}
 
-	eflag.StructVar(&ss)
+	eflag.StructVar(ss)
+	flag.Usage = eflag.POSIXStyle
 	flag.Parse()
-
-	fmt.Printf(JSON(ss))
+	fmt.Println(ss)
 }
 
 type simpleSettings struct {
+	OneFishName   string  `flag:"one,1,theonlyone" desc:"name of one fish"`
+	TwoFishName   string  `flag:"2,two"`                             // MUST HAVE flag TAG, but no description is necessary
+	ThreeFishName *string `flag:"3,three" desc:"name of three fish"` // pointers default to nil (unless specified on the CMD line)
+	IsAFish       *bool   `flag:"f,isafish"`                         // Boolean types can be specified  -f OR -f=true
+	WormCount     int     `flag:"w,wormcount" desc:"number of worms you have"`
 
-	// Default values are set to the type's zero value
-	OneFish    string `flag:"1,one" desc:"name of one fish"`
-	OneFishAge int    `flag:"1a,oneage" desc:"age of one fish"`
-
-	// These will be nil pointers, unless specified on the command line
-	TwoFish    *string `flag:"2,two" desc:"name of two fish"`
-	TwoFishAge *int    `flag:"2a,twoage" desc:"age of two fish"`
-
-	// MUST HAVE flag TAG, but no description is necessary
-	ThreeFish string `flag:"3"`
-
-	// Boolean types can be specified with no value -f
-	IsAFish *bool `flag:"f"`
-
-	// Only exported fields can be parsed
-	hiddenFish string `flag:"h"`
+	hiddenFish    string `flag:"h"`                                  // Only exported fields can be parsed
 }
 
-func JSON(o interface{}) string {
-	b, err := json.Marshal(o)
+func (ss *simpleSettings) String() string {
+	b, err := json.Marshal(ss)
 	if err != nil {
 		return "null"
 	}
-	return string(b)
-}
-
-func ptrToStr(s string) *string {
-	return &s
+	pp := &bytes.Buffer{}
+	json.Indent(pp, []byte(string(b)), " ", "\t")
+	return pp.String()
 }
