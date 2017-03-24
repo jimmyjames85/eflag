@@ -30,9 +30,10 @@ type simpleSettings struct {
 	TwoFishName   string  `flag:"2,two"`                             // MUST HAVE flag TAG, but no description is necessary
 	ThreeFishName *string `flag:"3,three" desc:"name of three fish"` // pointers default to nil (unless specified on the CMD line)
 	IsAFish       *bool   `flag:"f,isafish"`                         // Boolean types can be specified  -f OR -f=true
-	WormCount     int     `flag:"w,wormcount" desc:"number of worms you have"`
+	WormCount     int64   f`flag:"w,wormcount" desc:"number of worms you have"`
 
-	hiddenFish    string `flag:"h"`                                  // Only exported fields can be parsed
+	Boool      bool   `flag:"b,B" desc:"this is a boolean value"`
+	hiddenFish string `flag:"h"` // Only exported fields can be parsed
 }
 
 func (ss *simpleSettings) String() string {

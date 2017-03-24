@@ -19,6 +19,7 @@ type Arg struct {
 	//TODO Type??
 }
 
+// GetDeclaredArgs
 // This will return a slice of Arg pointers that represent
 // which flags have been flagged from either this library
 // or the `flag` library
@@ -33,12 +34,11 @@ func GetDeclaredArgs() []*Arg {
 		if val.Type() == reflect.TypeOf(&rValue{}) {
 			// rValue is just a reflect.Value
 			val = (reflect.Value)(val.Elem().Interface().(rValue))
-			addr = val.UnsafeAddr()
-
+			addr = val.Addr().Pointer()
 		} else {
 			val = val.Elem()
 			if val.CanAddr() {
-				addr = val.UnsafeAddr()
+				addr = val.Addr().Pointer()
 			} else {
 				addr = val.Pointer()
 			}
@@ -70,9 +70,15 @@ func GetDeclaredArgs() []*Arg {
 
 type argSorter []*Arg
 
-func (r argSorter) Len() int           { return len(r) }
-func (r argSorter) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
-func (r argSorter) Less(i, j int) bool { return r[i].Names[0] < r[j].Names[0] }
+func (r argSorter) Len() int {
+	return len(r)
+}
+func (r argSorter) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
+func (r argSorter) Less(i, j int) bool {
+	return r[i].Names[0] < r[j].Names[0]
+}
 
 func POSIXStyle() {
 
@@ -99,8 +105,15 @@ type rValue reflect.Value
 func (r *rValue) IsBoolFlag() bool {
 
 	v := (*reflect.Value)(r)
+
+	fmt.Printf("isbool? %s\n", v.Type())
+
 	if _, ok := v.Interface().(*bool); !ok {
-		return false
+
+		if _, ok2 := v.Interface().(bool); !ok2 {
+
+			return false
+		}
 	}
 	return true
 }
@@ -134,7 +147,7 @@ func (r *rValue) String() string {
 
 	switch val.Interface().(type) {
 
-	case int:
+	case int, int8, int16, int32, int64:
 		return fmt.Sprintf("%d", val.Int())
 	case string:
 		return fmt.Sprintf("\"%s\"", val.String())
@@ -150,30 +163,58 @@ func (r *rValue) Set(s string) error {
 
 	v := (*reflect.Value)(r)
 
-	if v.Kind() != reflect.Ptr {
-		return fmt.Errorf("_unsuported type %s", v.Type().String())
-	}
-
-	switch v.Interface().(type) {
-
-	case *int:
-		i, err := strconv.Atoi(s)
+	switch v.Kind() {
+	case reflect.String:
+		v.SetString(s)
+		return nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		i, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			return fmt.Errorf("_unable to parse %s: %v", s, err) // TODO how to make DRY (repeated below)
 		}
-		v.Set(reflect.ValueOf(&i))
+		v.SetInt(i)
+		return nil
+	//case reflect.Bool:
+	//	b, err := strconv.ParseBool(s)
+	//	if err != nil {
+	//		return fmt.Errorf("_unable to parse %s: %v", s, err) // TODO how to make DRY (repeated below)
+	//	}
+	//	v.SetBool(b)
+	//	return nil
+	case reflect.Ptr:
+		switch v.Interface().(type) {
 
-	case *string:
-		v.Set(reflect.ValueOf(&s))
-	case *bool:
-		b, err := strconv.ParseBool(s)
-		if err != nil {
-			return fmt.Errorf("_unable to parse %s: %v", s, err) // TODO how to make DRY (repeated above)
+		case *int: //, *int8, *int16, *int32, *int64:
+			i, err := strconv.Atoi(s) // strconv.ParseInt(s,10,64)
+			if err != nil {
+				return fmt.Errorf("_unable to parse %s: %v", s, err) // TODO how to make DRY (repeated below)
+			}
+			v.Set(reflect.ValueOf(&i))
+
+		case *string:
+			v.Set(reflect.ValueOf(&s))
+		case *bool:
+			fmt.Printf("Parsing %s\n", s)
+			b, err := strconv.ParseBool(s)
+			if err != nil {
+				return fmt.Errorf("_unable to parse %s: %v", s, err) // TODO how to make DRY (repeated above)
+			}
+			v.Set(reflect.ValueOf(&b))
+		default:
+			return fmt.Errorf("__unsuported type %s", v.Type().String())
 		}
-		v.Set(reflect.ValueOf(&b))
 	default:
-		return fmt.Errorf("_unsuported type %s", v.Type().String())
+		return fmt.Errorf(" ___ unsuported type %s", v.Type().String())
 	}
+
+	//if v.Kind() != reflect.Ptr {
+	//
+	//	reflect.Int8
+	//	v.SetInt(12)
+	//	return nil
+	//	// then we can't set it
+	//	return fmt.Errorf(" ___ unsuported type %s", v.Type().String())
+	//}
 
 	return nil
 }
@@ -208,7 +249,7 @@ func StructVar(ps interface{}) {
 			}
 			desc := tag.Get("desc")
 			if field.Kind() == reflect.Ptr {
-				dtype := field.Type().String()[1:] //remove the *
+				dtype := field.Type().String()[1:] // this removes the *
 
 				// back-ticks in the desc are used to denote the type
 				// in the help message. See flag.UnquoteUsage
@@ -218,23 +259,29 @@ func StructVar(ps interface{}) {
 			if field.CanSet() {
 
 				//fmt.Printf("CanSet Address: %v\n", field.Addr().Interface())
-				pfield := field.Addr().Interface()
+
 				switch field.Kind() {
 				case reflect.Ptr:
 					//ptrVal := &pValue{rvalue: &field}
 					//flag.Var(ptrVal, eflag, desc)
-					ptrVal := (rValue)(field)
-					flag.Var(&ptrVal, eflag, desc)
-				case reflect.Int:
-					flag.IntVar(pfield.(*int), eflag, int(field.Int()), desc)
-				case reflect.Int64:
-					flag.Int64Var(pfield.(*int64), eflag, field.Int(), desc)
+					rVal := (rValue)(field)
+					flag.Var(&rVal, eflag, desc)
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					rVal := (rValue)(field)
+					flag.Var(&rVal, eflag, desc)
 				case reflect.String:
-					flag.StringVar(pfield.(*string), eflag, field.String(), desc)
+					rVal := (rValue)(field)
+					flag.Var(&rVal, eflag, desc)
+				//flag.StringVar(pfield.(*string), eflag, field.String(), desc)
 				case reflect.Bool:
-					flag.BoolVar(pfield.(*bool), eflag, field.Bool(), desc)
+					rVal := (rValue)(field)
+					flag.Var(&rVal, eflag, desc)
+				//pfield := field.Addr().Interface()
+				//flag.BoolVar(pfield.(*bool), eflag, field.Bool(), desc)
 				default:
-					log.Fatal("unsuported: TODO") //TODO support it! ...
+					//ptrVal := (rValue)(field)
+					//flag.Var(&ptrVal, eflag, desc)
+					log.Fatal("unsuported StructVar field: TODO") //TODO support it! ...
 				}
 			}
 		}
