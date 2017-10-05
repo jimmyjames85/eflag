@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Arg struct {
@@ -219,6 +220,13 @@ func StructVar(ps interface{}) {
 
 				//fmt.Printf("CanSet Address: %v\n", field.Addr().Interface())
 				pfield := field.Addr().Interface()
+
+				t, ok := pfield.(*time.Duration)
+				if ok {
+					flag.DurationVar(t, eflag, *t, desc)
+					continue
+				}
+
 				switch field.Kind() {
 				case reflect.Ptr:
 					//ptrVal := &pValue{rvalue: &field}
