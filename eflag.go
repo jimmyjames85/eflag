@@ -89,7 +89,7 @@ func POSIXStyle() {
 		if len(defVal) > 0 {
 			defVal = fmt.Sprintf("(default: %s)", defVal)
 		}
-		fmt.Printf("\n\t\t%s %s [%s]\n\n", arg.Usage, defVal, arg.Type)
+		fmt.Printf("\n\t\t%s %s\n\n", arg.Usage, defVal)
 	}
 }
 
